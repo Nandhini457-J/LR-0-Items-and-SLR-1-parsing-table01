@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>LR(0) & SLR(1) Parser</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+            font-family: Arial, sans-serif;
+        }
+
+        body {
+            margin: 0;
+            padding: 30px;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #141e30, #243b55);
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: auto;
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,.3);
+        }
+
+        h1 {
+            text-align: center;
+            color: #243b55;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+        }
+
+        label {
+            display: block;
+            margin-top: 15px;
+            font-weight: bold;
+        }
+
+        textarea,
+        input {
+            width: 100%;
+            padding: 12px;
+            margin-top: 7px;
+            border: 1px solid #ccc;
+            border-radius: 7px;
+            font-size: 15px;
+        }
+
+        #grammar {
+            height: 180px;
+            resize: vertical;
+        }
+
+        #expression {
+            height: 50px;
+        }
+
+        button {
+            width: 100%;
+            padding: 15px;
+            margin-top: 20px;
+            border: none;
+            border-radius: 8px;
+            background: #243b55;
+            color: white;
+            font-size: 17px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #141e30;
+        }
+
+        #message {
+            margin-top: 20px;
+            font-weight: bold;
+        }
+
+        .success {
+            color: green;
+        }
+
+        .error {
+            color: red;
+        }
+
+        .result {
+            margin-top: 25px;
+            padding: 20px;
+            background: #f5f6f8;
+            border-radius: 10px;
+        }
+
+        .state {
+            background: white;
+            border: 1px solid #ddd;
+            padding: 15px;
+            margin: 12px 0;
+            border-radius: 8px;
+        }
+
+        .state h3 {
+            margin-top: 0;
+            color: #243b55;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+            background: white;
+        }
+
+        th,
+        td {
+            border: 1px solid #ccc;
+            padding: 9px;
+            text-align: center;
+        }
+
+        th {
+            background: #243b55;
+            color: white;
+        }
+
+        .accept {
+            color: green;
+            font-size: 25px;
+            font-weight: bold;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .reject {
+            color: red;
+            font-size: 25px;
+            font-weight: bold;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .section-title {
+            color: #243b55;
+            margin-top: 30px;
+        }
+
+        .scroll {
+            overflow-x: auto;
+        }
+
+        .follow-box {
+            display: inline-block;
+            background: #243b55;
+            color: white;
+            padding: 8px 12px;
+            margin: 5px;
+            border-radius: 6px;
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="container">
+
+    <h1>LR(0) Items & SLR(1) Parser</h1>
+
+    <p class="subtitle">
+        Grammar Analysis and Expression Acceptance Checker
+    </p>
+
+    <label>Grammar</label>
+
+    <textarea id="grammar"
+placeholder="Example:
+E -> E + T | T
+T -> T * F | F
+F -> ( E ) | id"></textarea>
+
+    <label>Expression</label>
+
+    <input
+        type="text"
+        id="expression"
+        placeholder="Example: id + id * id"
+    >
+
+    <button onclick="parseExpression()">
+        Generate LR(0) & SLR(1) Table
+    </button>
+
+    <div id="message"></div>
+
+    <div id="result" style="display:none;">
+
+        <h2 class="section-title">
+            1. LR(0) Items
+        </h2>
+
+        <div id="items"></div>
+
+
+        <h2 class="section-title">
+            2. FOLLOW Sets
+        </h2>
+
+        <div id="follow"></div>
+
+
+        <h2 class="section-title">
+            3. SLR(1) Parsing Table
+        </h2>
+
+        <div class="scroll">
+            <table id="parsingTable"></table>
+        </div>
+
+
+        <h2 class="section-title">
+            4. Parsing Steps
+        </h2>
+
+        <div class="scroll">
+            <table id="stepsTable"></table>
+        </div>
+
+
+        <div id="finalResult"></div>
+
+    </div>
+
+</div>
+
+
+<script>
+
+async function parseExpression() {
+
+    const grammar =
+        document.getElementById("grammar").value.trim();
+
+    const expression =
+        document.getElementById("expression").value.trim();
+
+    const message =
+        document.getElementById("message");
+
+    const result =
+        document.getElementById("result");
+
+
+    if (!grammar || !expression) {
+
+        message.innerHTML =
+            "<p class='error'>Please enter grammar and expression.</p>";
+
+        return;
+    }
+
+
+    message.innerHTML =
+        "<p>Generating LR(0) items and SLR(1) table...</p>";
+
+
+    try {
+
+        const response =
+            await fetch("/parse", {
+
+                method: "POST",
+
+                headers: {
+                    "Content-Type": "application/json"
+                },
+
+                body: JSON.stringify({
+                    grammar: grammar,
+                    expression: expression
+                })
+            });
+
+
+        const data =
+            await response.json();
+
+
+        if (!data.success) {
+
+            message.innerHTML =
+                `<p class="error">${data.error}</p>`;
+
+            result.style.display = "none";
+
+            return;
+        }
+
+
+        message.innerHTML =
+            "<p class='success'>Parsing completed.</p>";
+
+        result.style.display = "block";
+
+
+        // -----------------------------------
+        // LR(0) ITEMS
+        // -----------------------------------
+
+        let itemsHTML = "";
+
+        data.items.forEach(state => {
+
+            itemsHTML += `
+                <div class="state">
+
+                    <h3>I${state.state}</h3>
+
+                    ${state.items.map(item =>
+                        `<div>${item}</div>`
+                    ).join("")}
+
+                </div>
+            `;
+        });
+
+
+        document.getElementById("items").innerHTML =
+            itemsHTML;
+
+
+        // -----------------------------------
+        // FOLLOW SETS
+        // -----------------------------------
+
+        let followHTML = "";
+
+        Object.entries(data.follow).forEach(
+            ([nonterminal, values]) => {
+
+                followHTML += `
+                    <span class="follow-box">
+                        FOLLOW(${nonterminal})
+                        =
+                        { ${values.join(", ")} }
+                    </span>
+                `;
+            }
+        );
+
+
+        document.getElementById("follow").innerHTML =
+            followHTML;
+
+
+        // -----------------------------------
+        // SLR TABLE
+        // -----------------------------------
+
+        let tableHTML = "<tr>";
+
+        tableHTML += "<th>State</th>";
+
+        data.terminals.forEach(symbol => {
+
+            tableHTML +=
+                `<th>${symbol}</th>`;
+        });
+
+
+        data.nonterminals.forEach(symbol => {
+
+            tableHTML +=
+                `<th>GOTO ${symbol}</th>`;
+        });
+
+
+        tableHTML += "</tr>";
+
+
+        data.table.forEach(row => {
+
+            tableHTML += "<tr>";
+
+            tableHTML +=
+                `<td><b>${row.state}</b></td>`;
+
+
+            data.terminals.forEach(symbol => {
+
+                tableHTML +=
+                    `<td>${row.action[symbol] || ""}</td>`;
+            });
+
+
+            data.nonterminals.forEach(symbol => {
+
+                tableHTML +=
+                    `<td>${row.goto[symbol] ?? ""}</td>`;
+            });
+
+
+            tableHTML += "</tr>";
+        });
+
+
+        document.getElementById("parsingTable").innerHTML =
+            tableHTML;
+
+
+        // -----------------------------------
+        // PARSING STEPS
+        // -----------------------------------
+
+        let stepsHTML = `
+            <tr>
+                <th>Step</th>
+                <th>Stack</th>
+                <th>Input</th>
+                <th>Action</th>
+            </tr>
+        `;
+
+
+        data.steps.forEach((step, index) => {
+
+            stepsHTML += `
+                <tr>
+                    <td>${index + 1}</td>
+                    <td>${step.stack}</td>
+                    <td>${step.input}</td>
+                    <td>${step.action}</td>
+                </tr>
+            `;
+        });
+
+
+        document.getElementById("stepsTable").innerHTML =
+            stepsHTML;
+
+
+        // -----------------------------------
+        // FINAL RESULT
+        // -----------------------------------
+
+        if (data.accepted) {
+
+            document.getElementById("finalResult").innerHTML =
+                `
+                <div class="accept">
+                    ✅ ACCEPT
+                    <br>
+                    Expression is valid.
+                </div>
+                `;
+
+        } else {
+
+            document.getElementById("finalResult").innerHTML =
+                `
+                <div class="reject">
+                    ❌ REJECT
+                    <br>
+                    Expression is invalid.
+                </div>
+                `;
+        }
+
+
+        // -----------------------------------
+        // CONFLICT WARNING
+        // -----------------------------------
+
+        if (data.conflicts.length > 0) {
+
+            document.getElementById("finalResult").innerHTML +=
+                `
+                <div class="error">
+                    <b>SLR(1) Conflicts:</b>
+                    <ul>
+                        ${data.conflicts.map(
+                            c => `<li>${c}</li>`
+                        ).join("")}
+                    </ul>
+                </div>
+                `;
+        }
+
+    }
+
+    catch (error) {
+
+        message.innerHTML =
+            `
+            <p class="error">
+                Cannot connect to Flask server.
+                <br>
+                Make sure app.py is running.
+            </p>
+            `;
+
+    }
+
+}
+
+</script>
+
+</body>
+</html>
